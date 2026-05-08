@@ -5846,6 +5846,23 @@ window.addEventListener('load', async () => {
   // Always load public data
   setTimeout(loadPublic, 1000);
 });
+   // Fetch live prices from your Pi backend
+async function fetchLivePricesFromBot() {
+  try {
+    const res  = await fetch('https://your-tunnel.trycloudflare.com/api/prices');
+    const data = await res.json();
+    if (data.aitk_usd) {
+      window.aitkUSD  = data.aitk_usd;
+      window.maticUSD = data.pol_usd;
+      window.aitkRate = data.aitk_per_pol;
+      recalcModelPrices(); // updates all card prices
+      updatePriceTicker();
+    }
+  } catch {}
+}
+// Run on load + every hour
+fetchLivePricesFromBot();
+setInterval(fetchLivePricesFromBot, 3600000);
 </script>
 </body>
 </html>
