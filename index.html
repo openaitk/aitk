@@ -5072,59 +5072,29 @@ async function getPriceFromPool(prov) {
   const poolAddr = await getPoolAddress(prov);
   if (!poolAddr) return null;
 
-  // Try reading pool globalState
   try {
-    const pool    = new ethers.Contract(poolAddr, ALGEBRA_POOL_ABI, prov);
-    const [state, token0] = await Promise.all([
-      pool.globalState(),
-      pool.token0(),
-    ]);
+    const pool   = new ethers.Contract(poolAddr, ALGEBRA_POOL_ABI, prov);
+    const state  = await pool.globalState();   // sequential —
+    const token0 = await pool.token0();        // never batched
 
     const sqrtPriceX96 = state[0];
     if (!sqrtPriceX96 || sqrtPriceX96 === 0n) return null;
 
-    const Q96   = 2n ** 96n;
-    const sqrtP = BigInt(sqrtPriceX96.toString());
-    // price_token1_per_token0 = (sqrtP / 2^96)^2
-    // Use float math to avoid BigInt overflow
-    const sqrtPFloat = Number(sqrtP) / Number(Q96);
-    const price      = sqrtPFloat * sqrtPFloat; // token1 per token0
+    const Q96        = 2n ** 96n;
+    const sqrtP       = BigInt(sqrtPriceX96.toString());
+    const sqrtPFloat  = Number(sqrtP) / Number(Q96);
+    const price       = sqrtPFloat * sqrtPFloat;
 
     const wmaticIsToken0 = token0.toLowerCase() === DEX_WMATIC.toLowerCase();
-    const aitkPerWmatic  = wmaticIsToken0 ? price : (price > 0 ? 1 / price : 0);
+    const aitkPerWmatic   = wmaticIsToken0 ? price : (price > 0 ? 1 / price : 0);
 
     if (aitkPerWmatic > 0 && aitkPerWmatic < 100000) return aitkPerWmatic;
   } catch (e) {
     console.warn('globalState read failed:', e.message);
   }
-
-  // Fallback: try subgraph price
-  try {
-    const query = `{pool(id:"${poolAddr.toLowerCase()}"){token0Price token1Price token0{id}}}`;
-    const res = await fetch('https://api.thegraph.com/subgraphs/name/sameepsi/quickswap-v3', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query}),
-    });
-    if (res.ok) {
-      const d    = await res.json();
-      const pool = d?.data?.pool;
-      if (pool) {
-        const t0IsWmatic = pool.token0?.id?.toLowerCase() === DEX_WMATIC.toLowerCase();
-        // token0Price = amount of token0 per 1 token1
-        // token1Price = amount of token1 per 1 token0
-        const aitkPerPol = t0IsWmatic
-          ? parseFloat(pool.token1Price)  // AITK per WMATIC
-          : parseFloat(pool.token0Price); // AITK per WMATIC (inverted)
-        if (aitkPerPol > 0) {
-          console.log('Price from subgraph:', aitkPerPol);
-          return aitkPerPol;
-        }
-      }
-    }
-  } catch(e) { console.warn('Subgraph price error:', e.message); }
-
   return null;
-}
+}                                                     }
+ 
 
 // ── FETCH LIVE QUOTE ──────────────────────────────────
 async function dexFetchQuote() {
