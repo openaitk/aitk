@@ -5128,6 +5128,7 @@ async function getPriceFromPool(prov) {
 
 // ── FETCH LIVE QUOTE ──────────────────────────────────
 async function dexFetchQuote() {
+  if (dexSwapping) return;
   const pol = parseFloat($('from-amt')?.value) || 0;
   if (pol <= 0) return;
 
@@ -5139,7 +5140,7 @@ async function dexFetchQuote() {
 
   for (const rpc of DEX_RPCS) {
     try {
-      const prov = new ethers.JsonRpcProvider(rpc);
+      const prov  = dexMakeProvider(rpc);
       const price = await getPriceFromPool(prov);
       if (price && price > 0) {
         aitkPerPol = price;
@@ -5175,12 +5176,10 @@ async function dexFetchQuote() {
     dexHideQuoteStatus();
     dexUpdateBtn('ready');
 
-    // Refresh every 30s
     clearTimeout(dexQuoteTimer);
     dexQuoteTimer = setTimeout(dexFetchQuote, 30000);
 
   } else {
-    // Pool price unavailable — show estimate but allow redirect swap
     if ($('dex-source')) $('dex-source').textContent = '⚡ Estimate · Fetching pool...';
     dexShowQuoteStatus('warn', '⚠️ Pool lookup failed — will retry on swap');
     dexQuoteData = null;
