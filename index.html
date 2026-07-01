@@ -5203,9 +5203,19 @@ async function dexExecuteSwap() {
   const pol = parseFloat($('from-amt')?.value) || 0;
   if (pol <= 0) { toast('Enter amount', 'Enter the POL amount to swap', 'err'); return; }
 
-  // Always try on-chain swap using current estimate if no live quote
   if (!dexQuoteData?.isLive) {
-    // Build estimate-based quote for on-chain swap
+    toast('Verifying price…', 'Confirming live rate before swap', 'inf');
+    await dexFetchQuote();
+  }
+
+  if (!dexQuoteData?.isLive) {
+    const proceed = confirm(
+      'Could not confirm the live exchange rate from the blockchain.\n\n' +
+      'Continuing will use an estimated rate and may fail or give you ' +
+      'fewer AITK than expected.\n\nContinue anyway?'
+    );
+    if (!proceed) return;
+
     const rate   = window.aitkRate || 86.2;
     const estOut = pol * rate;
     const minOut = estOut * (1 - dexSlip / 100);
@@ -5214,12 +5224,14 @@ async function dexExecuteSwap() {
       aitkOut:   estOut,
       minOut,
       pol,
+      aitkPerPol: rate,
       minBuyWei: ethers.parseEther(minOut.toFixed(18)).toString(),
       sellWei:   ethers.parseEther(String(pol)).toString(),
     };
-    toast('Using estimate', 'Fetching exact rate from pool...', 'inf');
   }
+
   await dexExecuteOnChain();
+
 }
 
 async function dexExecuteOnChain() {
